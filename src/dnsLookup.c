@@ -15,6 +15,8 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 
 4.) We will send a DNS query to user Internet Service Provider’s (ISP) recursive DNS server
 
+5.) Will implment the DNS query from scratch - First create the DNS request structure
+
 */
 #include<stdio.h>
 #include<stdlib.h>
@@ -49,6 +51,60 @@ typedef struct ERRORMSG{
     char message[BUFFERSIZE];
     int errorCode;
 } CUSTOMERROR;
+
+/*
+DNS format
+ -----------------
+|    Header       |
+ -----------------
+|    Question     |
+ -----------------
+|    Answer       |
+ -----------------
+|    Authority    |
+ -----------------
+|    Additional   |
+ -----------------
+
+*/
+
+//create DNS header format
+/*
+ID - 16 bits -> 2 byte
+QR - 1 bit -> use bit field
+OPCODE - 4 bit
+*/
+
+typedef struct {
+    unsigned char QR: 1,
+    unsigned short OPCODE: 4,
+    unsigned char AA: 1,
+    unsigned char TC,
+    unsigned char RD: 1,
+    unsigned char RA,
+    unsigned short Z,
+    unsigned short RCODE:4,
+}DNS_HEADER_FLAG;
+
+typedef struct{
+    unsigned short int ID,
+    unsigned short int QDCOUNT,
+    unsigned short int ANCOUNT,
+    DNS_HEADER_FLAG Flag;
+    unsigned short int NSCOUNT,
+    unsigned short int ARCOUNT
+
+}DNS_HEADER;
+
+//configure query
+typedef struct{
+    char Domain[1024];
+    unsigned short int QTYPE;
+    unsigned short int CLASS; 
+
+}DNS_QUERY_QUESTION;
+
+//configure resource record
 
 char* fileLocation = "/etc/resolv.conf";
 

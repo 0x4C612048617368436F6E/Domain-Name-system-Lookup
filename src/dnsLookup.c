@@ -18,6 +18,12 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 5.) Will implment the DNS query from scratch - First create the DNS request structure
 
 */
+#if defined(WIN_32)
+//Implement WINDOWS version after
+
+#elif defined(__LINUX__)
+
+
 #include<stdio.h>
 #include<stdlib.h>
 #include<regex.h>
@@ -25,6 +31,7 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netdb.h>
+#include<netinet/in.h>
 #include<arpa/inet.h>
 
 #define NUMBEROFINPUTS 2
@@ -38,11 +45,19 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 
 #define BUFFERSIZE 1024
 #define MAXLENGTHOFNAMESERVERADDRESS 27
+
 //above can be:
 /*
 nameserver 255.255.255.255
 
 maximum length -> 27 (including null terminating character)
+*/
+
+#define MAXOFUDPPACKET 64000
+//UDP can hold a MAX of 64KB which equates to 6400 bytes
+
+/*
+1 byte = 0.001 KB
 */
 typedef void (*Callback)(int);
 typedef void (*_Callback)();
@@ -97,14 +112,31 @@ typedef struct{
 }DNS_HEADER;
 
 //configure query
+
 typedef struct{
-    char Domain[1024];
+    unsigned char Domain[BUFFERSIZE];
+}DNS_DOMAIN;
+
+typedef struct{
+    DNS_DOMAIN DOMAIN;
     unsigned short int QTYPE;
     unsigned short int CLASS; 
 
-}DNS_QUERY_QUESTION;
+}DNS_QUERY;
 
 //configure resource record
+typedef struct{
+    unsigned short TYPE;
+    unsigned short CLASS;
+    unsigned int TTL;
+    unsigned short DATA_LEN; 
+}DNS_RESOURCE_DATA;
+
+typedef struct{
+    DNS_DOMAIN DOMAIN;
+    DNS_RESOURCE_DATA RESOURCE;
+    unsigned char RESOURCE_DATA[BUFFERSIZE]; 
+}DNS_RESOURCE_RECORD;
 
 char* fileLocation = "/etc/resolv.conf";
 
@@ -116,19 +148,33 @@ void fileError();
 
 void UnableToAllocateMemoryUsingMalloc();
 
+void inetError();
+
 void UnableToAllocateMoreMemoryUsingRealloc();
 
 void regexCompilationError();
+
+void SocketInitiationError();
 
 void treatInput(int numOfInputs, char* input,Callback errorCallback);
 
 int isDomainNameFormatValidRegex(char* input,_Callback callback);
 
-void sendDNSQueryToUserISPRecursiveDNSServer(char* domain);
+void generateRandom16BitNumber();
+
+void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,_Callback callback);
+
+char* convertDomainIntoDNSDomainFormat(char* domain);
+
+void DNSResponse();
+
+size_t simpleStrlen(const char* string);
 
 char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_Callback errorCallbackMalloc, _Callback errorCallbackRealloc);
 
 char* subStringExtractorAndTrim(char* actualString, size_t initialPos,_Callback errorCallbackMalloc, _Callback errorCallbackRealloc);
+
+void socketInitiation();
 
 void fileError(){
     CUSTOMERROR customError;
@@ -167,6 +213,36 @@ void UnableToAllocateMemoryUsingMalloc(){
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = BUFFERSIZEERROR;
         printf("Error Type: Malloc Error\n");
+        printf("Error Message: %s\n",customError.message);
+        printf("Error code: %d",customError.errorCode);
+        exit(EXIT_FAILURE);
+    }
+    //even if condition does not fo throug, still exit
+    exit(EXIT_FAILURE);
+}
+
+void SocketInitiationError(){
+    CUSTOMERROR customError;
+    int n = snprintf(customError.message,sizeof(customError.message),"Unable to initiate socket connection");
+
+    if(n>=0 && n <= BUFFERSIZE){
+        customError.errorCode = BUFFERSIZEERROR;
+        printf("Error Type: Socket Error\n");
+        printf("Error Message: %s\n",customError.message);
+        printf("Error code: %d",customError.errorCode);
+        exit(EXIT_FAILURE);
+    }
+    //even if condition does not fo throug, still exit
+    exit(EXIT_FAILURE);
+}
+
+void inetError(){
+    CUSTOMERROR customError;
+    int n = snprintf(customError.message,sizeof(customError.message),"Inet return -1");
+
+    if(n>=0 && n <= BUFFERSIZE){
+        customError.errorCode = BUFFERSIZEERROR;
+        printf("Error Type: Inet Error\n");
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
@@ -336,15 +412,118 @@ char* subStringExtractorAndTrim(char* actualString, size_t initialPos, _Callback
     printf("\n%s\n",returnedSubString);
 }
 
-void sendDNSQueryToUserISPRecursiveDNSServer(char* domain){
+void DNSResponse(){
+    //response from DNS
+    /*
+    This will usually inlcude:
+DNS format
+ -----------------
+|    Header       |
+ -----------------
+|    Question     |
+ -----------------
+|    Answer       | RR
+ -----------------
+|    Authority    | RR
+ -----------------
+|    Additional   | RR
+ -----------------
+ But What we need to extract should just be the:
+ 1.) Answer
+ 2.) Authority
+ 3.)Additional
+    */
+    DNS_RESOURCE_RECORD Answer, Authority, Additional;
+}
+
+void socketInitiation(_Callback callback){
+    //DNS usually uses UDP socket
+    /*
+    (See if can do later) - DNS can also use TCP socket in soome cases
+    */
+    int SOCKETENDPOINT = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+    if(!SOCKETENDPOINT){
+        //callback
+        callback();
+    }
+}
+
+size_t simpleStrlen(const char* string){
+    const char* pointer = string;
+    while(*pointer){
+        pointer++;
+    }
+    return pointer - string;
+}
+
+char* convertDomainIntoDNSDomainFormat(char* domain, char* query){
+    //converts the Domain into a DNS DomainFormat
+    /*
+    Given www.google.com -> converts into
+    3www.6google.3com0
+    */
+   size_t lock=0, i=0;
+   for(;i<simpleStrlen((const char*)domain;i++)){
+        if(*(domain+i) == '.'){
+            //continue
+        }
+   }
+}
+
+void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,_Callback callback){
     //get ISP recursive DNS server and send DNS query to it
     char* ISPRecursiveAddress = subStringExtractorAndTrim(readFileAndReturnRecursiveAddress(fileLocation,fileError,UnableToAllocateMemoryUsingMalloc,UnableToAllocateMoreMemoryUsingRealloc),10,UnableToAllocateMemoryUsingMalloc,UnableToAllocateMoreMemoryUsingRealloc);
 
-    struct addrinfo hints, *res;
-    int status;
-    char ipstr[INET_ADDRSTRLEN];
-    //HERE
+    char DNSQUERYINBUFFER[MAXOFUDPPACKET];
+    char* actualQuery;
+    
+    //create DNS Header
+    DNS_HEADER *dns_header = NULL;
+    //configure buffer
+    dns_header = (struct DNS_HEADER)&DNSQUERYINBUFFER;
 
+    dns_header->ID = 0;
+    dns_header->QDCOUNT = 0;
+    dns_header->ANCOUNT = 0;
+    dns_header->Flag.QR = 0;
+
+    dns_header->Flag.OPCODE = 0;
+    dns_header->Flag.AA = 0;
+    dns_header->Flag.TC = 0;
+    dns_header->Flag.RD = 1; //recursion allowed
+    dns_header->Flag.RA = 0;
+    dns_header->Flag.Z = 0;
+    dns_header->Flag.RCODE = 0;
+
+    dns_header->NSCOUNT = 0;
+    dns_header->ARCOUNT = 0;
+
+    //extract the configured
+    actualQuery = (unsigned char*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)]
+    //Create DNS Query/Message 
+
+    DNS_QUERY dns_query_message;
+    memset(dns_query_message.DOMAIN.Domain,'0',sizeof(dns_query_message.DOMAIN.Domain));
+    dns_query_message.QTYPE = 0;
+    dns_query_message.CLASS = 0;
+
+    //Create destination structure
+    struct sockaddr_in DestinationAddress;
+
+    DestinationAddress.sin_family = AF_INET;
+    DestinationAddress.sin_port = htons(53); //DNS works on port 53
+    //make use of inet_aton
+    DestinationAddress.sin_port = inet_aton(ISPRecursiveAddress);
+
+    if(!DestinationAddress.sin_port){
+        //callback
+        callback();
+    }
+
+}
+
+void generateRandom16BitNumber(){
+    //For each of the DNS request, a random 16bit number will be generated
 }
 
 //adapt this for regexError
@@ -447,3 +626,5 @@ int main(int argc, char** args){
     treatInput(argc,args[1],incorrectNumberOfInput);
     return 0;
 }
+
+#endif

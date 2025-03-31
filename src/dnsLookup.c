@@ -21,11 +21,12 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 #if defined(WIN_32)
 //Implement WINDOWS version after
 
-#elif defined(__LINUX__)
+#elif defined(__linux__)
 
 
 #include<stdio.h>
 #include<stdlib.h>
+#include<time.h>
 #include<regex.h>
 #include<string.h>
 #include<sys/types.h>
@@ -59,8 +60,10 @@ maximum length -> 27 (including null terminating character)
 /*
 1 byte = 0.001 KB
 */
-typedef void (*Callback)(int);
-typedef void (*_Callback)();
+
+typedef void (*Callback2Input)(char*,char*);
+typedef void (*callback3Input)(char*,char*,int);
+typedef void (*_callback3Input)(char*,char*,int);
 
 typedef struct ERRORMSG{
     char message[BUFFERSIZE];
@@ -91,24 +94,23 @@ OPCODE - 4 bit
 */
 
 typedef struct {
-    unsigned char QR: 1,
-    unsigned short OPCODE: 4,
-    unsigned char AA: 1,
-    unsigned char TC,
-    unsigned char RD: 1,
-    unsigned char RA,
-    unsigned short Z,
-    unsigned short RCODE:4,
+    unsigned char QR: 1;
+    unsigned short OPCODE: 4;
+    unsigned char AA: 1;
+    unsigned char TC;
+    unsigned char RD: 1;
+    unsigned char RA;
+    unsigned short Z;
+    unsigned short RCODE:4;
 }DNS_HEADER_FLAG;
 
 typedef struct{
-    unsigned short int ID,
-    unsigned short int QDCOUNT,
-    unsigned short int ANCOUNT,
+    unsigned short int ID;
+    unsigned short int QDCOUNT;
+    unsigned short int ANCOUNT;
     DNS_HEADER_FLAG Flag;
-    unsigned short int NSCOUNT,
-    unsigned short int ARCOUNT
-
+    unsigned short int NSCOUNT;
+    unsigned short int ARCOUNT;
 }DNS_HEADER;
 
 //configure query
@@ -118,10 +120,9 @@ typedef struct{
 }DNS_DOMAIN;
 
 typedef struct{
-    DNS_DOMAIN DOMAIN;
-    unsigned short int QTYPE;
+    //DNS_DOMAIN DOMAIN;
+    unsigned short int QTYP;
     unsigned short int CLASS; 
-
 }DNS_QUERY;
 
 //configure resource record
@@ -140,49 +141,39 @@ typedef struct{
 
 char* fileLocation = "/etc/resolv.conf";
 
-void bufferSizeTooSmall(int wrongBufferSize);
+void Callback2CharInput(char* ErrMsg,char* ErrType);
 
-void incorrectNumberOfInput(int NumOfInputs);
+void Callback3CharInput(char* ErrMsg,char* ErrType,int status);
 
-void fileError();
+void Callback3CharInputVariation(char* ErrMsg,char* ErrType,int status);
 
-void UnableToAllocateMemoryUsingMalloc();
+void treatInput(int numOfInputs, char* input,_callback3Input errorCallback);
 
-void inetError();
-
-void UnableToAllocateMoreMemoryUsingRealloc();
-
-void regexCompilationError();
-
-void SocketInitiationError();
-
-void treatInput(int numOfInputs, char* input,Callback errorCallback);
-
-int isDomainNameFormatValidRegex(char* input,_Callback callback);
+int isDomainNameFormatValidRegex(char* input,Callback2Input RegexCompileError);
 
 void generateRandom16BitNumber();
 
-void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,_Callback callback);
+void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callback);
 
-char* convertDomainIntoDNSDomainFormat(char* domain);
+char* convertDomainIntoDNSDomainFormat(char* domain, char* query);
 
 void DNSResponse();
 
 size_t simpleStrlen(const char* string);
 
-char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_Callback errorCallbackMalloc, _Callback errorCallbackRealloc);
+char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallback,Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc);
 
-char* subStringExtractorAndTrim(char* actualString, size_t initialPos,_Callback errorCallbackMalloc, _Callback errorCallbackRealloc);
+char* subStringExtractorAndTrim(char* actualString, size_t initialPos, Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc);
 
-void socketInitiation();
+void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination);
 
-void fileError(){
+void Callback2CharInput(char* ErrMsg,char* ErrType){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Unable to open File");
+    int n = snprintf(customError.message,sizeof(customError.message),ErrMsg);
 
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: File Error\n");
+        printf("Error Type: %s\n",ErrType);
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
@@ -191,13 +182,28 @@ void fileError(){
     exit(EXIT_FAILURE);
 }
 
-void UnableToAllocateMoreMemoryUsingRealloc(){
+void Callback3CharInput(char* ErrMsg,char* ErrType,int status){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Unable to Reallocate Buffer");
+    int n = snprintf(customError.message,sizeof(customError.message),"Number of Inputs must be 2, but you entered: %d",NumOfInputs);
+    if(n>=0 && n <= BUFFERSIZE){
+        customError.errorCode = INCORRECTNUMBEROFINPUTS;
+        printf("Error Type: Incorrect Number of Input\n");
+        printf("Error Message: %s\n",customError.message);
+        printf("Error code: %d",customError.errorCode);
+        exit(EXIT_FAILURE);
+    }else{
+        //another custom Error
+        //errorCallback(n,errorMessage,bufferSizeTooSmall);
+        bufferSizeTooSmall(n);
+    }
+}
 
+void Callback3CharInputVariation(char* ErrMsg,char* ErrType,int status){
+    CUSTOMERROR customError;
+    int n = snprintf(customError.message,sizeof(customError.message),ErrMsg,status);
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Malloc Error\n");
+        printf("Error Type: Buffer Size too small\n");
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
@@ -206,52 +212,7 @@ void UnableToAllocateMoreMemoryUsingRealloc(){
     exit(EXIT_FAILURE);
 }
 
-void UnableToAllocateMemoryUsingMalloc(){
-    CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Unable to Allocate Buffer");
-
-    if(n>=0 && n <= BUFFERSIZE){
-        customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Malloc Error\n");
-        printf("Error Message: %s\n",customError.message);
-        printf("Error code: %d",customError.errorCode);
-        exit(EXIT_FAILURE);
-    }
-    //even if condition does not fo throug, still exit
-    exit(EXIT_FAILURE);
-}
-
-void SocketInitiationError(){
-    CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Unable to initiate socket connection");
-
-    if(n>=0 && n <= BUFFERSIZE){
-        customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Socket Error\n");
-        printf("Error Message: %s\n",customError.message);
-        printf("Error code: %d",customError.errorCode);
-        exit(EXIT_FAILURE);
-    }
-    //even if condition does not fo throug, still exit
-    exit(EXIT_FAILURE);
-}
-
-void inetError(){
-    CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Inet return -1");
-
-    if(n>=0 && n <= BUFFERSIZE){
-        customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Inet Error\n");
-        printf("Error Message: %s\n",customError.message);
-        printf("Error code: %d",customError.errorCode);
-        exit(EXIT_FAILURE);
-    }
-    //even if condition does not fo throug, still exit
-    exit(EXIT_FAILURE);
-}
-
-char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_Callback errorCallbackMalloc, _Callback errorCallbackRealloc){
+char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallback,Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc){
     //since we are using linux, we will focus on making this just for linux
 
     /*
@@ -265,14 +226,14 @@ char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_
 
     if(!storageBuffer){
         //callback error
-        errorCallbackMalloc();
+        errorCallbackMalloc("Unable to Allocate Buffer","Malloc Error");
     }
 
     file = fopen(fileName,"r");
     if(!file){
         //callback
         fclose(file);
-        errorCallback();
+        errorCallback("Unable to open File","File Error");
     }
     //now what we do is read the file, and then find a way to get the value from 'nameserver'
 
@@ -285,7 +246,7 @@ char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_
             storageSize+=BUFFERSIZE;
             if(!(realloc(storageBuffer,storageSize))){
                 //callback realloc error
-                errorCallbackRealloc();
+                errorCallbackRealloc("Unable to Reallocate Buffer","Reallocation Error");
             }
             *(storageBuffer+pointer) = tempStore;
         }else{
@@ -347,7 +308,7 @@ char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_
 
             if(!res){
                 //callback error
-                errorCallbackMalloc();
+                errorCallbackMalloc("Unable to Allocate Buffer","Malloc Error");
             }
 
             size_t position = 0;
@@ -357,7 +318,7 @@ char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_
                     storageBuf+=MAXLENGTHOFNAMESERVERADDRESS;
                     if(!(realloc(res,storageBuf))){
                         //callback realloc error
-                        errorCallbackRealloc();
+                        errorCallbackRealloc("Unable to Reallocate Buffer","Reallocation Error");
                     }
                     *(res+position) = *(storageBuffer+i);
                 }else{
@@ -374,7 +335,7 @@ char* readFileAndReturnRecursiveAddress(char* fileName,_Callback errorCallback,_
     return "";
 }
 
-char* subStringExtractorAndTrim(char* actualString, size_t initialPos, _Callback errorCallbackMalloc, _Callback errorCallbackRealloc){
+char* subStringExtractorAndTrim(char* actualString, size_t initialPos, Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc){
     size_t actualInitialPos = initialPos;
     while(*(actualString+actualInitialPos) == ' '){
         actualInitialPos++;
@@ -386,7 +347,7 @@ char* subStringExtractorAndTrim(char* actualString, size_t initialPos, _Callback
 
     if(!returnedSubString){
         //callback error
-        errorCallbackMalloc();
+        errorCallbackMalloc("Unable to Allocate Buffer","Malloc Error");
     }
 
     int length = 0;
@@ -399,7 +360,7 @@ char* subStringExtractorAndTrim(char* actualString, size_t initialPos, _Callback
             storageBuf+=MAXLENGTHOFNAMESERVERADDRESS;
             if(!(realloc(returnedSubString,storageBuf))){
                 //callback realloc error
-                errorCallbackRealloc();
+                errorCallbackRealloc("Unable to Reallocate Buffer","Reallocation Error");
             }
 
             *(returnedSubString+pointer) = *(actualString+i);
@@ -436,16 +397,22 @@ DNS format
     DNS_RESOURCE_RECORD Answer, Authority, Additional;
 }
 
-void socketInitiation(_Callback callback){
+void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination){
     //DNS usually uses UDP socket
     /*
-    (See if can do later) - DNS can also use TCP socket in soome cases
+    (See if can do later) - DNS can also use TCP socket in some cases
     */
     int SOCKETENDPOINT = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
     if(!SOCKETENDPOINT){
         //callback
-        callback();
+        SocketInitiationError("Unable to initiate socket connection","Socket Error");
     }
+    int success = sendto(s,(char*)query,(DNS_HEADER_SIZE+querySize+DNS_QUESTION_SIZE),0,(struct sockaddr*)&destination,sizeof(destination));
+    if(!success){
+        //callback
+        SendToError("Unable to transmit message to socket","Sendto Error");
+    }
+    printf("DNS query Sent");
 }
 
 size_t simpleStrlen(const char* string){
@@ -465,24 +432,40 @@ char* convertDomainIntoDNSDomainFormat(char* domain, char* query){
    size_t lock=0, i=0;
    for(;i<simpleStrlen((const char*)domain;i++)){
         if(*(domain+i) == '.'){
-            //continue
+            ++query = i-lock;
+            while(lock<i){
+                lock++;
+            }
+        }else{
+            ++query = *(domain+i);
         }
    }
+   ++query = '\0';
 }
 
-void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,_Callback callback){
+void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callback){
     //get ISP recursive DNS server and send DNS query to it
-    char* ISPRecursiveAddress = subStringExtractorAndTrim(readFileAndReturnRecursiveAddress(fileLocation,fileError,UnableToAllocateMemoryUsingMalloc,UnableToAllocateMoreMemoryUsingRealloc),10,UnableToAllocateMemoryUsingMalloc,UnableToAllocateMoreMemoryUsingRealloc);
+    char* ISPRecursiveAddress = subStringExtractorAndTrim(readFileAndReturnRecursiveAddress(fileLocation,Callback2CharInput,Callback2CharInput,Callback2CharInput),10,Callback2CharInput,Callback2CharInput);
 
     char DNSQUERYINBUFFER[MAXOFUDPPACKET];
     char* actualQuery;
+
+    //Create destination structure
+    struct sockaddr_in DestinationAddress;
+
+    DestinationAddress.sin_family = AF_INET;
+    DestinationAddress.sin_port = htons(53); //DNS works on port 53
+    //make use of inet_aton
+    DestinationAddress.sin_port = inet_aton(ISPRecursiveAddress);
     
     //create DNS Header
     DNS_HEADER *dns_header = NULL;
+    //create Question/query structure
+    DNS_QUERY *dns_query = NULL;
     //configure buffer
-    dns_header = (struct DNS_HEADER)&DNSQUERYINBUFFER;
+    dns_header = (DNS_HEADER*)&DNSQUERYINBUFFER;
 
-    dns_header->ID = 0;
+    dns_header->ID = generateRandom16BitNumber();
     dns_header->QDCOUNT = 0;
     dns_header->ANCOUNT = 0;
     dns_header->Flag.QR = 0;
@@ -499,51 +482,37 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,_Callback callback){
     dns_header->ARCOUNT = 0;
 
     //extract the configured
-    actualQuery = (unsigned char*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)]
+    actualQuery = (unsigned char*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)];
     //Create DNS Query/Message 
+    convertDomainIntoDNSDomainFormat(actualQuery,domain);
+    DNS_QUERY *dns_query_message = NULL;
+    dns_query_message = (DNS_QUERY*)&buf[sizeof(DNS_HEADER)+(simpleStrlen((const char*)actualQuery))];
 
-    DNS_QUERY dns_query_message;
-    memset(dns_query_message.DOMAIN.Domain,'0',sizeof(dns_query_message.DOMAIN.Domain));
-    dns_query_message.QTYPE = 0;
-    dns_query_message.CLASS = 0;
+    dns_query_message->QTYPE = htons(1);
+    dns_query_message->QCLASS = htons(1);
 
-    //Create destination structure
-    struct sockaddr_in DestinationAddress;
+    //start to send packet
+    socketInitiation(); //initiates and sends socket
 
-    DestinationAddress.sin_family = AF_INET;
-    DestinationAddress.sin_port = htons(53); //DNS works on port 53
-    //make use of inet_aton
-    DestinationAddress.sin_port = inet_aton(ISPRecursiveAddress);
-
-    if(!DestinationAddress.sin_port){
-        //callback
-        callback();
-    }
+    //receive response
 
 }
 
-void generateRandom16BitNumber(){
-    //For each of the DNS request, a random 16bit number will be generated
+short int generateRandom16BitNumber(){
+    //For each of the DNS request, a random 16-bit number will be generated
+
+    /*
+    8 bits - 1byte
+    16 bits - 2 byte
+    */
+
+    //initialise random number generator
+    srand(time(0));
+    short int random16BitNum = rand();
+    return random16BitNum;
 }
 
-//adapt this for regexError
-void regexCompilationError(){
-    //callback function for regex error
-    CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Regex Compilcation Error");
-
-    if(n>=0 && n <= BUFFERSIZE){
-        customError.errorCode = REGEXCOMPILATIONERROR;
-        printf("Error Type: Regex Error\n");
-        printf("Error Message: %s\n",customError.message);
-        printf("Error code: %d",customError.errorCode);
-        exit(EXIT_FAILURE);
-    }
-    //even if condition does not fo throug, still exit
-    exit(EXIT_FAILURE);
-}
-
-int isDomainNameFormatValidRegex(char* input,_Callback callback){
+int isDomainNameFormatValidRegex(char* input,Callback2Input RegexCompileError){
     regex_t regex;
     int compilationStatus;
     //compiler code
@@ -554,7 +523,7 @@ int isDomainNameFormatValidRegex(char* input,_Callback callback){
         printf("Regex compiled successfully");
     }else{
         //printf("compilation failed");
-        callback();
+        RegexCompileError("Regex Compilation Error","Regex Error");
     }
 
     //execution code
@@ -574,43 +543,29 @@ int isDomainNameFormatValidRegex(char* input,_Callback callback){
     return 1;
 }
 
-void bufferSizeTooSmall(int wrongBufferSize){
+void incorrectNumberOfInput(char* ErrMsg, char* ErrType, int NumOfInputs, callback3Input errorCallback){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Buffer Size Error. Expected 0 or 1024. Got: %d",wrongBufferSize);
-    if(n>=0 && n <= BUFFERSIZE){
-        customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Buffer Size too small\n");
-        printf("Error Message: %s\n",customError.message);
-        printf("Error code: %d",customError.errorCode);
-        exit(EXIT_FAILURE);
-    }
-    //even if condition does not fo throug, still exit
-    exit(EXIT_FAILURE);
-}
-
-void incorrectNumberOfInput(int NumOfInputs){
-    CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Number of Inputs must be 2, but you entered: %d",NumOfInputs);
+    int n = snprintf(customError.message,sizeof(customError.message),ErrMsg,NumOfInputs);
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = INCORRECTNUMBEROFINPUTS;
-        printf("Error Type: Incorrect Number of Input\n");
+        printf("Error Type: %s\n",ErrType);
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
     }else{
         //another custom Error
-        //errorCallback(n,errorMessage,bufferSizeTooSmall);
-        bufferSizeTooSmall(n);
+        //bufferSizeTooSmall(n);
+        errorCallback("Buffer Size Error. Expected 0 or 1024. Got: %d","Buffer Size too small\n",n);
     }
 }
 
-void treatInput(int numOfInputs, char* input,Callback errorCallback){
+void treatInput(int numOfInputs, char* input,_callback3Input errorCallback){
     if(numOfInputs < NUMBEROFINPUTS || numOfInputs > NUMBEROFINPUTS){
-        errorCallback(numOfInputs);
+        errorCallback("Number of Inputs must be 2, but you entered: %d","Incorrect Number of Input\n",numOfInputs);
     }
     //Make sure input is of correct format before sending to regex function
     printf("\n%s\n",input);
-    int success = isDomainNameFormatValidRegex(input,regexCompilationError);
+    int success = isDomainNameFormatValidRegex(input,Callback2CharInput);
     if(success == 0){
         //throw an error
         printf("\nMatched");

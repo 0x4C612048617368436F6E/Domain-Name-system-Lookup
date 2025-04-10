@@ -23,7 +23,6 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 
 #elif defined(__linux__)
 
-
 #include<stdio.h>
 #include<stdlib.h>
 #include<time.h>
@@ -57,13 +56,16 @@ maximum length -> 27 (including null terminating character)
 #define MAXOFUDPPACKET 64000
 //UDP can hold a MAX of 64KB which equates to 6400 bytes
 
+//generate a 16 bit number
+#define _16BITRANDOMNUM 65536
+
 /*
 1 byte = 0.001 KB
 */
 
 typedef void (*Callback2Input)(char*,char*);
-typedef void (*callback3Input)(char*,char*,int);
-typedef void (*_callback3Input)(char*,char*,int);
+typedef void (*callback3Input)(char*,char*);
+typedef void (*_callback3Input)(char*,char*);
 
 typedef struct ERRORMSG{
     char message[BUFFERSIZE];
@@ -121,8 +123,8 @@ typedef struct{
 
 typedef struct{
     //DNS_DOMAIN DOMAIN;
-    unsigned short int QTYP;
-    unsigned short int CLASS; 
+    unsigned short int QTYPE;
+    unsigned short int QCLASS; 
 }DNS_QUERY;
 
 //configure resource record
@@ -143,33 +145,33 @@ char* fileLocation = "/etc/resolv.conf";
 
 void Callback2CharInput(char* ErrMsg,char* ErrType);
 
-void Callback3CharInput(char* ErrMsg,char* ErrType,int status);
+void Callback3CharInput(char* ErrMsg,char* ErrType);
 
-void Callback3CharInputVariation(char* ErrMsg,char* ErrType,int status);
+void Callback3CharInputVariation(char* ErrMsg,char* ErrType);
 
 void treatInput(int numOfInputs, char* input,_callback3Input errorCallback);
 
 int isDomainNameFormatValidRegex(char* input,Callback2Input RegexCompileError);
 
-void generateRandom16BitNumber();
+short int generateRandom16BitNumber();
 
 void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callback);
 
-char* convertDomainIntoDNSDomainFormat(char* domain, char* query);
+char* convertDomainIntoDNSDomainFormat(unsigned char* query, char* domain);
 
 void DNSResponse();
 
-size_t simpleStrlen(const char* string);
+size_t simpleStrlen(const unsigned char* string);
 
 char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallback,Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc);
 
 char* subStringExtractorAndTrim(char* actualString, size_t initialPos, Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc);
 
-void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination);
+void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination);
 
 void Callback2CharInput(char* ErrMsg,char* ErrType){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),ErrMsg);
+    int n = snprintf(customError.message,sizeof(customError.message),"%s\n",ErrMsg);
 
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = BUFFERSIZEERROR;
@@ -178,37 +180,37 @@ void Callback2CharInput(char* ErrMsg,char* ErrType){
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
     }
-    //even if condition does not fo throug, still exit
+    //even if condition does not go through, still exit
     exit(EXIT_FAILURE);
 }
 
-void Callback3CharInput(char* ErrMsg,char* ErrType,int status){
+void Callback3CharInput(char* ErrMsg,char* ErrType){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),"Number of Inputs must be 2, but you entered: %d",NumOfInputs);
+    int n = snprintf(customError.message,sizeof(customError.message),"%s\n",ErrMsg);
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = INCORRECTNUMBEROFINPUTS;
-        printf("Error Type: Incorrect Number of Input\n");
+        printf("Error Type: %s\n",ErrType);
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
     }else{
         //another custom Error
-        //errorCallback(n,errorMessage,bufferSizeTooSmall);
-        bufferSizeTooSmall(n);
+        //bufferSizeTooSmall(n);
+        exit(EXIT_FAILURE);
     }
 }
 
-void Callback3CharInputVariation(char* ErrMsg,char* ErrType,int status){
+void Callback3CharInputVariation(char* ErrMsg,char* ErrType){
     CUSTOMERROR customError;
-    int n = snprintf(customError.message,sizeof(customError.message),ErrMsg,status);
+    int n = snprintf(customError.message,sizeof(customError.message),"%s\n",ErrMsg);
     if(n>=0 && n <= BUFFERSIZE){
         customError.errorCode = BUFFERSIZEERROR;
-        printf("Error Type: Buffer Size too small\n");
+        printf("Error Type: %s\n",ErrType);
         printf("Error Message: %s\n",customError.message);
         printf("Error code: %d",customError.errorCode);
         exit(EXIT_FAILURE);
     }
-    //even if condition does not fo throug, still exit
+    //even if condition does not go throug, still exit
     exit(EXIT_FAILURE);
 }
 
@@ -257,7 +259,7 @@ char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallb
 
     //terminate the string
     *(storageBuffer+pointer) = '\0';
-    printf("%s",storageBuffer);
+    //printf("%s",storageBuffer);
 
     //Find a way to search the string and get postion of where:
     /*
@@ -371,6 +373,7 @@ char* subStringExtractorAndTrim(char* actualString, size_t initialPos, Callback2
     }
     *(returnedSubString+pointer) = '\0';
     printf("\n%s\n",returnedSubString);
+    return returnedSubString;
 }
 
 void DNSResponse(){
@@ -397,7 +400,7 @@ DNS format
     DNS_RESOURCE_RECORD Answer, Authority, Additional;
 }
 
-void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination){
+void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination){
     //DNS usually uses UDP socket
     /*
     (See if can do later) - DNS can also use TCP socket in some cases
@@ -407,7 +410,7 @@ void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendTo
         //callback
         SocketInitiationError("Unable to initiate socket connection","Socket Error");
     }
-    int success = sendto(s,(char*)query,(DNS_HEADER_SIZE+querySize+DNS_QUESTION_SIZE),0,(struct sockaddr*)&destination,sizeof(destination));
+    int success = sendto(SOCKETENDPOINT,(char*)query,(DNS_HEADER_SIZE+querySize+DNS_QUESTION_SIZE),0,(struct sockaddr*)&destination,sizeof(destination));
     if(!success){
         //callback
         SendToError("Unable to transmit message to socket","Sendto Error");
@@ -415,32 +418,36 @@ void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendTo
     printf("DNS query Sent");
 }
 
-size_t simpleStrlen(const char* string){
-    const char* pointer = string;
+size_t simpleStrlen(const unsigned char* string){
+    const unsigned char* pointer = string;
     while(*pointer){
         pointer++;
     }
     return pointer - string;
 }
 
-char* convertDomainIntoDNSDomainFormat(char* domain, char* query){
+char* convertDomainIntoDNSDomainFormat(unsigned char* query, char* domain){
     //converts the Domain into a DNS DomainFormat
     /*
     Given www.google.com -> converts into
     3www.6google.3com0
     */
+
+    //get length of query
+    size_t lengthOfQuery = simpleStrlen(query);
    size_t lock=0, i=0;
-   for(;i<simpleStrlen((const char*)domain;i++)){
+   for(;i<simpleStrlen((const unsigned char*)domain);i++){
         if(*(domain+i) == '.'){
-            ++query = i-lock;
+            *(query+lengthOfQuery) = i-lock;
             while(lock<i){
                 lock++;
             }
         }else{
-            ++query = *(domain+i);
+            *(query+lengthOfQuery) = *(domain+i);
         }
+        lengthOfQuery++;
    }
-   ++query = '\0';
+   *(query+lengthOfQuery) = '\0';
 }
 
 void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callback){
@@ -448,15 +455,23 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callbac
     char* ISPRecursiveAddress = subStringExtractorAndTrim(readFileAndReturnRecursiveAddress(fileLocation,Callback2CharInput,Callback2CharInput,Callback2CharInput),10,Callback2CharInput,Callback2CharInput);
 
     char DNSQUERYINBUFFER[MAXOFUDPPACKET];
-    char* actualQuery;
+    unsigned char* actualQuery;
 
     //Create destination structure
     struct sockaddr_in DestinationAddress;
 
+    //in address structure
+    struct in_addr addr;
+
     DestinationAddress.sin_family = AF_INET;
     DestinationAddress.sin_port = htons(53); //DNS works on port 53
     //make use of inet_aton
-    DestinationAddress.sin_port = inet_aton(ISPRecursiveAddress);
+    //difference between inet_aton
+    DestinationAddress.sin_port = inet_aton(ISPRecursiveAddress,&addr);
+    if(!DestinationAddress.sin_port){
+        //custom callback
+        callback("Given Address is not valid","Invalid address");
+    }
     
     //create DNS Header
     DNS_HEADER *dns_header = NULL;
@@ -464,8 +479,7 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callbac
     DNS_QUERY *dns_query = NULL;
     //configure buffer
     dns_header = (DNS_HEADER*)&DNSQUERYINBUFFER;
-
-    dns_header->ID = generateRandom16BitNumber();
+    dns_header->ID = generateRandom16BitNumber();//ran;
     dns_header->QDCOUNT = 0;
     dns_header->ANCOUNT = 0;
     dns_header->Flag.QR = 0;
@@ -486,14 +500,14 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callbac
     //Create DNS Query/Message 
     convertDomainIntoDNSDomainFormat(actualQuery,domain);
     DNS_QUERY *dns_query_message = NULL;
-    dns_query_message = (DNS_QUERY*)&buf[sizeof(DNS_HEADER)+(simpleStrlen((const char*)actualQuery))];
+    dns_query_message = (DNS_QUERY*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)+(simpleStrlen((const unsigned char*)actualQuery))];
 
     dns_query_message->QTYPE = htons(1);
     dns_query_message->QCLASS = htons(1);
 
     //start to send packet
-    socketInitiation(); //initiates and sends socket
-
+    socketInitiation(Callback2CharInput,Callback2CharInput,actualQuery,sizeof(DNS_HEADER),simpleStrlen(actualQuery),sizeof(DNS_QUERY),DestinationAddress); //initiates and sends socket
+    printf("\nSent DNS query\n");
     //receive response
 
 }
@@ -508,7 +522,7 @@ short int generateRandom16BitNumber(){
 
     //initialise random number generator
     srand(time(0));
-    short int random16BitNum = rand();
+    short int random16BitNum = rand() % _16BITRANDOMNUM;
     return random16BitNum;
 }
 
@@ -555,13 +569,13 @@ void incorrectNumberOfInput(char* ErrMsg, char* ErrType, int NumOfInputs, callba
     }else{
         //another custom Error
         //bufferSizeTooSmall(n);
-        errorCallback("Buffer Size Error. Expected 0 or 1024. Got: %d","Buffer Size too small\n",n);
+        errorCallback("Buffer Size Error. Expected 0 or 1024","Buffer Size too small\n");
     }
 }
 
 void treatInput(int numOfInputs, char* input,_callback3Input errorCallback){
     if(numOfInputs < NUMBEROFINPUTS || numOfInputs > NUMBEROFINPUTS){
-        errorCallback("Number of Inputs must be 2, but you entered: %d","Incorrect Number of Input\n",numOfInputs);
+        errorCallback("Number of Inputs must be 2","Incorrect Number of Input\n");
     }
     //Make sure input is of correct format before sending to regex function
     printf("\n%s\n",input);
@@ -574,7 +588,7 @@ void treatInput(int numOfInputs, char* input,_callback3Input errorCallback){
     }
 
     //call the DNS query mechanism here
-    sendDNSQueryToUserISPRecursiveDNSServer(input);
+    sendDNSQueryToUserISPRecursiveDNSServer(input,Callback2CharInput);
 }
 
 int main(int argc, char** args){

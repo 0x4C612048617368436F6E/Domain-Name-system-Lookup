@@ -1,5 +1,5 @@
 CC:=gcc
-CXXFLAGS:=-g -Wall -Wextra -std=c99
+CXXFLAGS:=-g -Wall -Wextra
 CPPFLAGS:=-DDEBUG
 SRC:=$(wildcard *.c)
 OBJDIR:=./build

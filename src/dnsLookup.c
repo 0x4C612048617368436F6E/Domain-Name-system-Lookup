@@ -17,9 +17,12 @@ For example if provided input is: 'https://www.whois.com/' remove the 'https://w
 
 5.) Will implment the DNS query from scratch - First create the DNS request structure
 
+6.) Implement response
+
 */
 #if defined(WIN_32)
 //Implement WINDOWS version after
+#include <window>
 
 #elif defined(__linux__)
 
@@ -479,18 +482,19 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callbac
     DNS_QUERY *dns_query = NULL;
     //configure buffer
     dns_header = (DNS_HEADER*)&DNSQUERYINBUFFER;
-    dns_header->ID = generateRandom16BitNumber();//ran;
-    dns_header->QDCOUNT = 0;
-    dns_header->ANCOUNT = 0;
-    dns_header->Flag.QR = 0;
+    dns_header->ID = generateRandom16BitNumber();
 
-    dns_header->Flag.OPCODE = 0;
-    dns_header->Flag.AA = 0;
-    dns_header->Flag.TC = 0;
+    dns_header->QDCOUNT = 1; //set to 1 to indicate question
+    dns_header->ANCOUNT = 0; //0 indicate not proving answer
+    dns_header->Flag.QR = 0; //if query then 0. response is 1
+
+    dns_header->Flag.OPCODE = 0; //4 bit field. 0 -> standard query
+    dns_header->Flag.AA = 0; //onlyy useful in response
+    dns_header->Flag.TC = 0; //only useful in responses
     dns_header->Flag.RD = 1; //recursion allowed
-    dns_header->Flag.RA = 0;
+    dns_header->Flag.RA = 0; //only useful in response
     dns_header->Flag.Z = 0;
-    dns_header->Flag.RCODE = 0;
+    dns_header->Flag.RCODE = 0; //only useful in response
 
     dns_header->NSCOUNT = 0;
     dns_header->ARCOUNT = 0;

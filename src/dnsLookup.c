@@ -170,7 +170,9 @@ char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallb
 
 char* subStringExtractorAndTrim(char* actualString, size_t initialPos, Callback2Input errorCallbackMalloc, Callback2Input errorCallbackRealloc);
 
-void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination);
+int socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination);
+
+int receiveRespone(Callback2Input RecvError,unsigned char* query,struct sockaddr_in destination,int Socket);
 
 void Callback2CharInput(char* ErrMsg,char* ErrType){
     CUSTOMERROR customError;
@@ -281,14 +283,14 @@ char* readFileAndReturnRecursiveAddress(char* fileName,Callback2Input errorCallb
         //check if substring 'namespace' exist
         if((*(storageBuffer+i)) == (*(NS+idx))){
 
-            if(isFound){
+            /*if(isFound){
                 printf("\n================\n");
-            }
+            }*/
 
             isFound = 0;
-            printf("%c - %ld\n",*(storageBuffer+i),i);
+            //printf("%c - %ld\n",*(storageBuffer+i),i);
             if((pos2-pos1) == 9){
-                printf("\nGot the line\n");
+                //printf("\nGot the line\n");
                 isSatisfied = 1;
             }
             //Find solutions for this...
@@ -403,7 +405,7 @@ DNS format
     DNS_RESOURCE_RECORD Answer, Authority, Additional;
 }
 
-void socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination){
+int socketInitiation(Callback2Input SocketInitiationError,Callback2Input SendToError,unsigned char* query,size_t DNS_HEADER_SIZE, size_t querySize,size_t DNS_QUESTION_SIZE,struct sockaddr_in destination){
     //DNS usually uses UDP socket
     /*
     (See if can do later) - DNS can also use TCP socket in some cases
@@ -453,12 +455,20 @@ char* convertDomainIntoDNSDomainFormat(unsigned char* query, char* domain){
    *(query+lengthOfQuery) = '\0';
 }
 
+int receiveRespone(Callback2Input RecvError,unsigned char* query,struct sockaddr_in destination,int Socket){
+    socklen_t i = sizeof(destination);
+    if(!(recvfrom(Socket,(char*)query,MAXOFUDPPACKET,0,(struct sockaddr*)&destination,&i))){
+        RecvError("Unable to receive data","Recv Error");
+    }
+    return 0;
+}
+
 void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callback){
     //get ISP recursive DNS server and send DNS query to it
     char* ISPRecursiveAddress = subStringExtractorAndTrim(readFileAndReturnRecursiveAddress(fileLocation,Callback2CharInput,Callback2CharInput,Callback2CharInput),10,Callback2CharInput,Callback2CharInput);
 
     char DNSQUERYINBUFFER[MAXOFUDPPACKET];
-    unsigned char* actualQuery;
+    unsigned char* actualQuery, *reader;
 
     //Create destination structure
     struct sockaddr_in DestinationAddress;
@@ -503,18 +513,36 @@ void sendDNSQueryToUserISPRecursiveDNSServer(char* domain,Callback2Input callbac
     actualQuery = (unsigned char*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)];
     //Create DNS Query/Message 
     convertDomainIntoDNSDomainFormat(actualQuery,domain);
+
     DNS_QUERY *dns_query_message = NULL;
+
     dns_query_message = (DNS_QUERY*)&DNSQUERYINBUFFER[sizeof(DNS_HEADER)+(simpleStrlen((const unsigned char*)actualQuery))];
 
     dns_query_message->QTYPE = htons(1);
     dns_query_message->QCLASS = htons(1);
 
     //start to send packet
-    socketInitiation(Callback2CharInput,Callback2CharInput,actualQuery,sizeof(DNS_HEADER),simpleStrlen(actualQuery),sizeof(DNS_QUERY),DestinationAddress); //initiates and sends socket
+    int socket = socketInitiation(Callback2CharInput,Callback2CharInput,actualQuery,sizeof(DNS_HEADER),simpleStrlen(actualQuery),sizeof(DNS_QUERY),DestinationAddress); //initiates and sends socket
     printf("\nSent DNS query\n");
     //receive response
 
+    printf("\nReceiving Response\n");
+    if(!(receiveRespone(Callback2CharInput,actualQuery,DestinationAddress,socket))){
+        printf("Received response");
+    }
+    dns_header = (DNS_HEADER*)&DNSQUERYINBUFFER;
+    reader = &DNSQUERYINBUFFER[sizeof(DNS_HEADER)+(simpleStrlen((const unsigned char*)actualQuery))];
+
+    printf("\nThe response contains\n");
+    printf("\n%d Questions.", ntohs(dns_header->QDCOUNT));
+    printf("\n %d Answers.",ntohs(dns_header->ANCOUNT));
+	printf("\n %d Authoritative Servers.",ntohs(dns_header->NSCOUNT));
+	printf("\n %d Additional records.\n\n",ntohs(dns_header->ARCOUNT));
 }
+
+/*
+receiveRespone(Callback2Input RecvError,unsigned char* query,struct sockaddr_in destination,int Socket)
+*/
 
 short int generateRandom16BitNumber(){
     //For each of the DNS request, a random 16-bit number will be generated
